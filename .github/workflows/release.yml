@@ -71,10 +71,10 @@ jobs:
       ######################################################################
       # Build V Binary
       ######################################################################
-      - name: Build tinu10k_conf
+      - name: Build tinu10k-conf
         working-directory: tinu10k-conf
         run: |
-          v -cc "zig cc -target ${{ matrix.zig_target }}" -prod -o tinu10k_conf .
+          v -prod .
 
       ######################################################################
       # Download gitstatusd
@@ -95,10 +95,10 @@ jobs:
       - name: Copy binaries
         run: |
           cp tinu10k-prompt/zig-out/bin/tinu10k release/bin/
-          cp tinu10k-conf/tinu10k_conf release/bin/
+          cp tinu10k-conf/tinu10k-conf release/bin/
 
           chmod +x release/bin/tinu10k
-          chmod +x release/bin/tinu10k_conf
+          chmod +x release/bin/tinu10k-conf
 
       ######################################################################
       # Copy Templates
@@ -128,11 +128,11 @@ jobs:
           mkdir -p "${BIN_DIR}"
 
           cp ./bin/tinu10k "${BIN_DIR}/"
-          cp ./bin/tinu10k_conf "${BIN_DIR}/"
+          cp ./bin/tinu10k-conf "${BIN_DIR}/"
           cp ./bin/gitstatusd "${BIN_DIR}/"
 
           chmod +x "${BIN_DIR}/tinu10k"
-          chmod +x "${BIN_DIR}/tinu10k_conf"
+          chmod +x "${BIN_DIR}/tinu10k-conf"
           chmod +x "${BIN_DIR}/gitstatusd"
 
           if ! command -v nu >/dev/null 2>&1; then
@@ -146,7 +146,7 @@ jobs:
           echo ""
           echo "Running setup wizard..."
 
-          "${BIN_DIR}/tinu10k_conf"
+          "${BIN_DIR}/tinu10k-conf"
 
           echo ""
           echo "Installation complete."
