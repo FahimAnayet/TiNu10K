@@ -99,7 +99,7 @@ fn build_right(c Config) string {
 		}
 	} else {
 		for l in c.langs {
-			right += ' $l 3.12'
+			right += ' ${l} 3.12'
 		}
 	}
 	return right
