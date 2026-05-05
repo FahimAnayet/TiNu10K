@@ -58,7 +58,7 @@ jobs:
       - name: Setup V
         uses: vlang/setup-v@v1
         with:
-          version: 0.5
+          version: weekly.2026.08
 
       ######################################################################
       # Build Zig Binary
