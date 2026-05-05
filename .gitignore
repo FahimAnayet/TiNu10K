@@ -1,0 +1,16 @@
+# Zig
+.zig-cache/
+zig-out/
+
+# Vlang
+# Ignore the generated C files and the final binary
+*.c
+tinu_conf
+
+
+# Project Specific
+# Excludes session files (e.g., session-ses_2089.md)
+*.md
+
+# OS/IDEs
+.DS_Store

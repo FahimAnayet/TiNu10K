@@ -1,0 +1,186 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            zig_target: x86_64-linux-musl
+            artifact_name: linux-x86_64
+            gitstatusd_asset: gitstatusd-linux-x86_64
+
+          # Linux ARM64
+          - os: ubuntu-latest
+            zig_target: aarch64-linux-musl
+            artifact_name: linux-aarch64
+            gitstatusd_asset: gitstatusd-linux-aarch64
+
+          # macOS Intel
+          - os: macos-13
+            zig_target: x86_64-macos
+            artifact_name: macos-x86_64
+            gitstatusd_asset: gitstatusd-darwin-x86_64
+
+          # macOS Apple Silicon
+          - os: macos-latest
+            zig_target: aarch64-macos
+            artifact_name: macos-aarch64
+            gitstatusd_asset: gitstatusd-darwin-aarch64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      ######################################################################
+      # Setup Zig
+      ######################################################################
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: master
+
+      ######################################################################
+      # Setup V
+      ######################################################################
+      - name: Setup V
+        uses: vlang/setup-v@v1
+
+      ######################################################################
+      # Build Zig Binary
+      ######################################################################
+      - name: Build tinu10k
+        working-directory: tinu10k-prompt
+        run: |
+          zig build \
+            -Dtarget=${{ matrix.zig_target }} \
+            -Doptimize=ReleaseFast
+
+      ######################################################################
+      # Build V Binary
+      ######################################################################
+      - name: Build tinu10k_conf
+        working-directory: tinu10k-conf
+        run: |
+          v -prod -o tinu10k_conf .
+
+      ######################################################################
+      # Download gitstatusd
+      ######################################################################
+      - name: Download gitstatusd
+        run: |
+          mkdir -p release/bin
+
+          curl -L \
+            https://github.com/romkatv/gitstatus/releases/latest/download/${{ matrix.gitstatusd_asset }} \
+            -o release/bin/gitstatusd
+
+          chmod +x release/bin/gitstatusd
+
+      ######################################################################
+      # Copy Binaries
+      ######################################################################
+      - name: Copy binaries
+        run: |
+          cp tinu10k-prompt/zig-out/bin/tinu10k release/bin/
+          cp tinu10k-conf/tinu10k_conf release/bin/
+
+          chmod +x release/bin/tinu10k
+          chmod +x release/bin/tinu10k_conf
+
+      ######################################################################
+      # Copy Templates
+      ######################################################################
+      - name: Copy templates
+        run: |
+          mkdir -p release/templates
+
+          cp tinu10k-conf/template/nushell.nu \
+            release/templates/
+
+      ######################################################################
+      # Create install.sh
+      ######################################################################
+      - name: Create installer
+        run: |
+          cat > release/install.sh << 'EOF'
+          #!/usr/bin/env sh
+
+          set -e
+
+          PREFIX="${HOME}/.local"
+          BIN_DIR="${PREFIX}/bin"
+
+          echo "Installing tinu10k..."
+
+          mkdir -p "${BIN_DIR}"
+
+          cp ./bin/tinu10k "${BIN_DIR}/"
+          cp ./bin/tinu10k_conf "${BIN_DIR}/"
+          cp ./bin/gitstatusd "${BIN_DIR}/"
+
+          chmod +x "${BIN_DIR}/tinu10k"
+          chmod +x "${BIN_DIR}/tinu10k_conf"
+          chmod +x "${BIN_DIR}/gitstatusd"
+
+          if ! command -v nu >/dev/null 2>&1; then
+              echo ""
+              echo "Nushell is not installed."
+              echo "Install Nushell first:"
+              echo "https://www.nushell.sh/book/installation.html"
+              exit 1
+          fi
+
+          echo ""
+          echo "Running setup wizard..."
+
+          "${BIN_DIR}/tinu10k_conf" setup
+
+          echo ""
+          echo "Installation complete."
+          echo ""
+          echo "Restart Nushell."
+          EOF
+
+          chmod +x release/install.sh
+
+      ######################################################################
+      # Copy README
+      ######################################################################
+      - name: Copy README
+        run: |
+          cp README.md release/
+
+      ######################################################################
+      # Create Archive
+      ######################################################################
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+
+          ARCHIVE="tinu10k-${VERSION}-${{ matrix.artifact_name }}"
+
+          mv release "${ARCHIVE}"
+
+          tar -czf "${ARCHIVE}.tar.gz" "${ARCHIVE}"
+
+      ######################################################################
+      # Upload Release Assets
+      ######################################################################
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.tar.gz

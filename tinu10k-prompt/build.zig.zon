@@ -1,0 +1,12 @@
+.{
+    .name = .tinu10k,
+    .version = "0.0.1",
+    .fingerprint = 0xf0dcedd2550261c1, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.14.0",
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
