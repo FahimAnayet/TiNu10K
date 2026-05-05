@@ -57,6 +57,8 @@ jobs:
       ######################################################################
       - name: Setup V
         uses: vlang/setup-v@v1
+        with:
+          version: 0.5.0
 
       ######################################################################
       # Build Zig Binary
@@ -74,7 +76,7 @@ jobs:
       - name: Build tinu10k-conf
         working-directory: tinu10k-conf
         run: |
-          v -prod .
+          v -o tinu10k-conf .
 
       ######################################################################
       # Download gitstatusd
