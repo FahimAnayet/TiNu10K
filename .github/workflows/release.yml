@@ -66,7 +66,7 @@ jobs:
         run: |
           zig build \
             -Dtarget=${{ matrix.zig_target }} \
-            -Doptimize=ReleaseFast
+            -Doptimize=ReleaseSmall
 
       ######################################################################
       # Build V Binary
@@ -74,7 +74,7 @@ jobs:
       - name: Build tinu10k_conf
         working-directory: tinu10k-conf
         run: |
-          v -prod -o tinu10k_conf .
+          v -cc "zig cc -target ${{ matrix.zig_target }}" -prod -o tinu10k_conf .
 
       ######################################################################
       # Download gitstatusd
@@ -146,7 +146,7 @@ jobs:
           echo ""
           echo "Running setup wizard..."
 
-          "${BIN_DIR}/tinu10k_conf" setup
+          "${BIN_DIR}/tinu10k_conf"
 
           echo ""
           echo "Installation complete."
@@ -155,13 +155,6 @@ jobs:
           EOF
 
           chmod +x release/install.sh
-
-      ######################################################################
-      # Copy README
-      ######################################################################
-      - name: Copy README
-        run: |
-          cp README.md release/
 
       ######################################################################
       # Create Archive
