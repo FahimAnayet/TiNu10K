@@ -5,7 +5,8 @@ zig-out/
 # Vlang
 # Ignore the generated C files and the final binary
 *.c
-tinu_conf
+*/tinu-conf
+./tinu10k-conf/tinu10k-conf
 
 
 # Project Specific
