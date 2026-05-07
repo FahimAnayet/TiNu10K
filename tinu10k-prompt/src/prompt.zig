@@ -15,15 +15,11 @@ const Meta = struct {
 };
 
 pub fn generate(allocator: std.mem.Allocator, raw_path: []const u8, term_width: usize, allowed_input: []const u8) !void {
-    // Parse allowed languages
     var allowed_langs = std.StringHashMap(void).init(allocator);
     defer allowed_langs.deinit();
     var it = std.mem.splitScalar(u8, allowed_input, ',');
-    while (it.next()) |lang| {
-        if (lang.len > 0) try allowed_langs.put(lang, {});
-    }
+    while (it.next()) |lang| if (lang.len > 0) try allowed_langs.put(lang, {});
 
-    // Determine home directory
     const home_env = std.posix.getenv("HOME") orelse "";
     var prefix: []const u8 = " ";
     var builder_path: []const u8 = "/";
@@ -37,15 +33,12 @@ pub fn generate(allocator: std.mem.Allocator, raw_path: []const u8, term_width: 
         is_home = true;
     }
 
-    // Split path segments
     var segments = std.ArrayList([]const u8).init(allocator);
     defer segments.deinit();
     var seg_it = std.mem.splitScalar(u8, display_path, '/');
-    while (seg_it.next()) |seg| {
-        if (seg.len > 0) try segments.append(seg);
-    }
+    while (seg_it.next()) |seg| if (seg.len > 0) try segments.append(seg);
 
-    var current = try fs.realpathAlloc(allocator, builder_path);
+    var current = try allocator.dupe(u8, builder_path);
     defer allocator.free(current);
 
     var processed = std.ArrayList(Meta).init(allocator);
@@ -65,57 +58,61 @@ pub fn generate(allocator: std.mem.Allocator, raw_path: []const u8, term_width: 
         var meta: Meta = .{
             .full = seg,
             .current = seg,
-            .short_ = undefined, // filled later
+            .short_ = undefined,
+            .is_root = false,
         };
 
-        // Build sibling list for shortening only if needed (not root, not first home dir)
         var siblings = std.ArrayList([]const u8).init(allocator);
-        defer siblings.deinit();
-        const need_shorten = !meta.is_root and !(is_home and seg_idx == 0);
-        if (need_shorten) {
-            if (fs.openDirAbsolute(current, .{ .iterate = true })) |dir| {
-                var iter = dir.iterate();
-                while (iter.next() catch null) |entry| {
-                    try siblings.append(entry.name);
-                }
-            } else |_| {}
+        defer {
+            for (siblings.items) |s| allocator.free(s);
+            siblings.deinit();
         }
 
-        // Shortest unique prefix
-        var short_len: usize = 1;
-        // ~後首目錄最短3字符
-        if (is_home and seg_idx == 0 and meta.full.len > 3) {
-            short_len = 3;
-        }
-        while (short_len <= meta.full.len) : (short_len += 1) {
-            const candidate = meta.full[0..short_len];
-            var matches: usize = 0;
-            for (siblings.items) |sib| {
-                if (std.mem.startsWith(u8, sib, candidate)) matches += 1;
-            }
-            if (matches <= 1) break;
-        }
-        meta.short_ = meta.full[0..short_len];
-
-        // Scan for markers
-        if (fs.openDirAbsolute(next_path, .{ .iterate = true })) |dir| {
+        // --- Single Pass: Sibling Collection + Marker Peeking ---
+        if (fs.openDirAbsolute(current, .{ .iterate = true })) |dir| {
             var iter = dir.iterate();
             while (iter.next() catch null) |entry| {
-                if (marks.has(entry.name)) {
-                    try global_langs.put(marks.get(entry.name).?, {});
-                    meta.is_root = true;
-                }
-                if (root_mark.has(entry.name)) {
-                    meta.is_root = true;
-                    if (std.mem.eql(u8, entry.name, ".git")) {
-                        has_git = true;
-                        try global_langs.put("git", {});
-                    } else if (std.mem.eql(u8, entry.name, ".jj")) {
-                        try global_langs.put("jj", {});
-                    }
+                try siblings.append(try allocator.dupe(u8, entry.name));
+
+                // If this sibling IS our current segment, look inside it for markers
+                if (std.mem.eql(u8, entry.name, seg)) {
+                    if (dir.openDir(entry.name, .{ .iterate = true })) |sub_dir| {
+                        var sub_iter = sub_dir.iterate();
+                        while (sub_iter.next() catch null) |sub_entry| {
+                            if (marks.get(sub_entry.name)) |lang_name| {
+                                try global_langs.put(lang_name, {});
+                                meta.is_root = true;
+                            }
+                            if (root_mark.has(sub_entry.name)) {
+                                meta.is_root = true;
+                                if (std.mem.eql(u8, sub_entry.name, ".git")) {
+                                    has_git = true;
+                                    try global_langs.put("git", {});
+                                } else if (std.mem.eql(u8, sub_entry.name, ".jj")) {
+                                    try global_langs.put("jj", {});
+                                }
+                            }
+                        }
+                    } else |_| {}
                 }
             }
         } else |_| {}
+
+        // --- Shortest Unique Prefix Calculation ---
+        var short_len: usize = 1;
+        if (is_home and seg_idx == 0) {
+            short_len = if (seg.len > 3) 3 else seg.len;
+        } else {
+            while (short_len <= seg.len) : (short_len += 1) {
+                const candidate = seg[0..short_len];
+                var matches: usize = 0;
+                for (siblings.items) |sib| {
+                    if (std.mem.startsWith(u8, sib, candidate)) matches += 1;
+                }
+                if (matches <= 1) break;
+            }
+        }
+        meta.short_ = seg[0..@min(short_len, seg.len)];
 
         if (meta.is_root and !found_root) {
             allocator.free(anchor_path);
@@ -128,53 +125,40 @@ pub fn generate(allocator: std.mem.Allocator, raw_path: []const u8, term_width: 
         current = try allocator.dupe(u8, next_path);
     }
 
-    // Shorten segments to fit within half the terminal width
+    // --- Output JSON ---
     const max_width = term_width / 2;
     var total_len: usize = 0;
     for (processed.items) |p| total_len += p.current.len + 1;
     if (total_len > max_width) {
-        var i: usize = 0;
-        while (i < processed.items.len - 1) : (i += 1) {
+        for (0..processed.items.len - 1) |i| {
             if (processed.items[i].is_root) continue;
             processed.items[i].current = processed.items[i].short_;
-            // recalc length, break if small enough
             var new_total: usize = 0;
             for (processed.items) |p| new_total += p.current.len + 1;
             if (new_total <= max_width) break;
         }
     }
 
-    // Build hash for version cache (anchor dir + PATH)
-    var path_hash_buf: [std.crypto.hash.sha2.Sha256.digest_length]u8 = undefined;
+    var path_hash_buf: [32]u8 = undefined;
     var hasher = std.crypto.hash.sha2.Sha256.init(.{});
     hasher.update(if (found_root) anchor_path else raw_path);
     if (std.posix.getenv("PATH")) |env| hasher.update(env);
     hasher.final(&path_hash_buf);
     const path_hash = std.fmt.bytesToHex(&path_hash_buf, .lower);
 
-    // Start JSON output
     const stdout = std.io.getStdOut().writer();
     try stdout.print("{{\"prefix\":\"{s}\", \"segments\":[", .{prefix});
 
     for (processed.items, 0..) |p, idx| {
-        try stdout.print("{{\"text\":\"{s}\",\"is_anchor\":{s},\"is_collapsed\":{s}}}",
-            .{
-                p.current,
-                if (idx == processed.items.len - 1 or p.is_root) "true" else "false",
-                if (!std.mem.eql(u8, p.current, p.full)) "true" else "false",
-            });
+        try stdout.print("{{\"text\":\"{s}\",\"is_anchor\":{s},\"is_collapsed\":{s}}}", .{
+            p.current,
+            if (idx == processed.items.len - 1 or p.is_root) "true" else "false",
+            if (!std.mem.eql(u8, p.current, p.full)) "true" else "false",
+        });
         if (idx < processed.items.len - 1) try stdout.writeByte(',');
     }
 
-    // Git status
-    if (has_git) {
-        const git_json = git.query(allocator, raw_path) catch "";
-        try stdout.print("],\"git\":{s}", .{if (git_json.len > 0) git_json else "1"});
-    } else {
-        try stdout.print("],\"git\":null", .{});
-    }
-
-    // Languages
+    try stdout.print("],\"git\":{s}", .{if (has_git) (git.query(allocator, raw_path) catch "1") else "null"});
     try stdout.print(",\"languages\":{{", .{});
     var first_lang = true;
     var key_it = global_langs.keyIterator();
@@ -183,12 +167,9 @@ pub fn generate(allocator: std.mem.Allocator, raw_path: []const u8, term_width: 
             const cache_file = try std.fmt.allocPrint(allocator, "/tmp/tinu10k/v_{s}_{s}", .{ path_hash, lang.* });
             defer allocator.free(cache_file);
             const ver = version.getCached(allocator, cache_file) catch "";
-
             if (!first_lang) try stdout.writeByte(',');
             try stdout.print("\"{s}\":\"{s}\"", .{ lang.*, ver });
             first_lang = false;
-
-            // Update cache (fire-and-forget, but synchronous for simplicity)
             version.updateCache(allocator, lang.*, cache_file) catch {};
         }
     }
