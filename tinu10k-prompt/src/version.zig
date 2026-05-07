@@ -1,49 +1,49 @@
 const std = @import("std");
 
 pub const markers = std.StaticStringMap([]const u8).initComptime(.{
-    .{".lua-version",         "lua"},
-    .{".ruby-version",       "ruby"},
-    .{"build.zig",           "zig"},
-    .{"build.zig.zon",       "zig"},
-    .{".go-version",         "go"},
-    .{"go.mod",              "go"},
-    .{"v.mod",               "v"},
-    .{"Cargo.toml",          "rust"},
-    .{"pyproject.toml",      "python"},
-    .{"requirements.txt",    "python"},
-    .{".python-version",     "python"},
-    .{"package.json",        "node"},
-    .{".node-version",       "node"},
-    .{"bun.lockb",           "node"},
-    .{".java-version",       "java"},
-    .{".perl-version",       "perl"},
-    .{".php-version",        "php"},
-    .{"composer.json",       "php"},
-    .{"stack.yaml",          "haskell"},
+    .{ ".lua-version", "lua" },
+    .{ ".ruby-version", "ruby" },
+    .{ "build.zig", "zig" },
+    .{ "build.zig.zon", "zig" },
+    .{ ".go-version", "go" },
+    .{ "go.mod", "go" },
+    .{ "v.mod", "v" },
+    .{ "Cargo.toml", "rust" },
+    .{ "pyproject.toml", "python" },
+    .{ "requirements.txt", "python" },
+    .{ ".python-version", "python" },
+    .{ "package.json", "node" },
+    .{ ".node-version", "node" },
+    .{ "bun.lockb", "node" },
+    .{ ".java-version", "java" },
+    .{ ".perl-version", "perl" },
+    .{ ".php-version", "php" },
+    .{ "composer.json", "php" },
+    .{ "stack.yaml", "haskell" },
 });
 
 pub const root_markers = std.StaticStringMap(void).initComptime(.{
-    .{".svn", {}},
-    .{".hg", {}},
-    .{".bzr", {}},
-    .{".shorten_folder_marker", {}},
-    .{".git", {}},
-    .{".jj", {}},
-    .{".mise.toml", {}},
-    .{".citc", {}},
-    .{".terraform", {}},
-    .{".tool-versions", {}},
-    .{"CVS", {}},
+    .{ ".svn", {} },
+    .{ ".hg", {} },
+    .{ ".bzr", {} },
+    .{ ".shorten_folder_marker", {} },
+    .{ ".git", {} },
+    .{ ".jj", {} },
+    .{ ".mise.toml", {} },
+    .{ ".citc", {} },
+    .{ ".terraform", {} },
+    .{ ".tool-versions", {} },
+    .{ "CVS", {} },
 });
 
 pub const lang_cmd = std.StaticStringMap([]const u8).initComptime(.{
-    .{"python",     "python3 --version"},
-    .{"rust",       "rustc --version"},
-    .{"v",          "v --version"},
-    .{"node",       "node -v"},
-    .{"zig",        "zig version"},
-    .{"go",         "go version"},
-    .{"lua",        "lua -v"},
+    .{ "python", "python3 --version" },
+    .{ "rust", "rustc --version" },
+    .{ "v", "v --version" },
+    .{ "node", "node -v" },
+    .{ "zig", "zig version" },
+    .{ "go", "go version" },
+    .{ "lua", "lua -v" },
 });
 
 /// Parse version string according to the language convention.
@@ -60,23 +60,24 @@ fn parseVersion(lang: []const u8, raw: []const u8) []const u8 {
 
     if (tokens.items.len == 0) return "";
 
-    if (std.mem.eql(u8, lang, "python") or std.mem.eql(u8, lang, "rust")) {
+    // Python, Rust, and V all use the second token
+    if (std.mem.eql(u8, lang, "python") or std.mem.eql(u8, lang, "rust") or std.mem.eql(u8, lang, "v")) {
         return if (tokens.items.len > 1) tokens.items[1] else tokens.items[0];
-    } else if (std.mem.eql(u8, lang, "node")) {
-        var v = tokens.items[0];
-        if (v.len > 0 and v[0] == 'v') v = v[1..];
-        return v;
-    } else if (std.mem.eql(u8, lang, "go")) {
-        // "go version go1.26.2-X:nodwarf5 ..."
+    }
+
+    if (std.mem.eql(u8, lang, "node")) {
+        const v = tokens.items[0];
+        return if (v.len > 0 and v[0] == 'v') v[1..] else v;
+    }
+
+    if (std.mem.eql(u8, lang, "go")) {
         var v = if (tokens.items.len > 2) tokens.items[2] else return "";
         if (std.mem.startsWith(u8, v, "go")) v = v[2..];
-        if (std.mem.indexOfScalar(u8, v, '-')) |hyphen| {
-            v = v[0..hyphen];
-        }
+        if (std.mem.indexOfScalar(u8, v, '-')) |h| return v[0..h];
         return v;
-    } else {
-        return raw;
     }
+
+    return raw;
 }
 
 /// Update the version cache file if older than 5 seconds.
