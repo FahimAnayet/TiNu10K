@@ -1,6 +1,7 @@
 const std = @import("std");
 const daemon = @import("daemon.zig");
 const prompt = @import("prompt.zig");
+const server = @import("server.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{ .thread_safe = false }){};
@@ -11,25 +12,15 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
 
     if (args.len < 2) {
-        std.debug.print("Version 1.0 \n Usage: tinu10k <daemon|prompt> ...\n", .{});
+        std.debug.print("Usage: tinu10k <start|stop|prompt> ...\n", .{});
         return error.InvalidArgs;
     }
 
     const cmd = args[1];
-    if (std.mem.eql(u8, cmd, "daemon")) {
-        if (args.len < 3) {
-            std.debug.print("Usage: tinu10k daemon <start|stop>\n", .{});
-            return error.InvalidArgs;
-        }
-        const action = args[2];
-        if (std.mem.eql(u8, action, "start")) {
-            try daemon.start(allocator);
-        } else if (std.mem.eql(u8, action, "stop")) {
-            try daemon.stop(allocator);
-        } else {
-            std.debug.print("Unknown daemon action: {s}\n", .{action});
-            return error.InvalidArgs;
-        }
+    if (std.mem.eql(u8, cmd, "start")) {
+        try server.start();
+    } else if (std.mem.eql(u8, cmd, "stop")) {
+        server.stop();
     } else if (std.mem.eql(u8, cmd, "prompt")) {
         if (args.len != 5) {
             std.debug.print("Usage: tinu10k prompt <path> <term_width> <allowed_langs>\n", .{});
