@@ -12,7 +12,7 @@ pub fn (c Config) generate_nu() string {
 	content = content.replace('"󰚌 "', '"' + c.os_icon + '"')
 
 	// Replace langs list
-	langs_str := c.langs.map(fn (l string) string { return '"' + l + '"' }).join(' ')
+	langs_str := c.langs.map(fn (l string) string { return l}).join(' ')
 	content = content.replace('PROMPT_LANGS: [python rust node zig go lua]', 'PROMPT_LANGS: [$langs_str]')
 
 	// Style
