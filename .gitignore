@@ -6,6 +6,8 @@ zig-out/
 # Ignore the generated C files and the final binary
 *.c
 tinu_conf
+./tinu10k-conf/tinu10k.nu
+./tinu10k-conf/tinu10k-conf
 
 
 # Project Specific
