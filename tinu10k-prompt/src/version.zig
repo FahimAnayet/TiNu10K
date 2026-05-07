@@ -7,6 +7,7 @@ pub const markers = std.StaticStringMap([]const u8).initComptime(.{
     .{"build.zig.zon",       "zig"},
     .{".go-version",         "go"},
     .{"go.mod",              "go"},
+    .{"v.mod",               "v"},
     .{"Cargo.toml",          "rust"},
     .{"pyproject.toml",      "python"},
     .{"requirements.txt",    "python"},
@@ -36,12 +37,13 @@ pub const root_markers = std.StaticStringMap(void).initComptime(.{
 });
 
 pub const lang_cmd = std.StaticStringMap([]const u8).initComptime(.{
-    .{"python",  "python3 --version"},
-    .{"rust",    "rustc --version"},
-    .{"node",    "node -v"},
-    .{"zig",     "zig version"},
-    .{"go",      "go version"},
-    .{"lua",     "lua -v"},
+    .{"python",     "python3 --version"},
+    .{"rust",       "rustc --version"},
+    .{"v",          "v --version"},
+    .{"node",       "node -v"},
+    .{"zig",        "zig version"},
+    .{"go",         "go version"},
+    .{"lua",        "lua -v"},
 });
 
 /// Parse version string according to the language convention.
