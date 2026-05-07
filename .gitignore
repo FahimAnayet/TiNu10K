@@ -1,11 +1,16 @@
 # Zig
 .zig-cache/
 zig-out/
+./tinu10k-prompt/zig-out/
+./tinu10k-prompt/.zig-cache/
 
 # Vlang
 # Ignore the generated C files and the final binary
 *.c
 tinu_conf
+tinu-conf
+./tinu10k-conf/tinu_conf
+./tinu10k-conf/tinu-conf
 
 
 # Project Specific
