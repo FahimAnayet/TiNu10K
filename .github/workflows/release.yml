@@ -79,16 +79,25 @@ jobs:
       ######################################################################
       # Download gitstatusd
       ######################################################################
-      - name: Download gitstatusd
+      - name: Build gitstatusd
         run: |
           mkdir -p release/bin
-
-          curl -L \
-            https://github.com/romkatv/gitstatus/releases/latest/download/${{ matrix.gitstatusd_asset }} \
-            -o release/bin/gitstatusd
-
+          git clone --depth=1 https://gitee.com/romkatv/gitstatus.git
+          cd gitstatus
+          
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            # Use docker for Linux cross-compilation
+            ./build -w -s -d docker
+            mv usrbin/gitstatusd ../release/bin/
+          else
+            # Native build for macOS (no docker)
+            ./build -w -s
+            # macOS binary ends up in specialized dirs, usually:
+            mv bin/gitstatusd-darwin-* ../release/bin/gitstatusd
+          fi
+          cd ..
+          rm -rf gitstatus
           chmod +x release/bin/gitstatusd
-
       ######################################################################
       # Copy Binaries
       ######################################################################
@@ -126,6 +135,7 @@ jobs:
           echo "Installing tinu10k..."
 
           mkdir -p "${BIN_DIR}"
+          mkdir -p "/tmp/tinu10k"
 
           cp ./bin/tinu10k "${BIN_DIR}/"
           cp ./bin/tinu10k_conf "${BIN_DIR}/"
